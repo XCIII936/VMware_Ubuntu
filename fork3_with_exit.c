@@ -11,8 +11,8 @@ int main(){
         pid=fork();//有 exit(0)：3 进程，2 对输出。
         if(pid==0){
             value += 15;
-            printf("Child: value = %d\n",value);
-        }
+            printf("Child: value = %d\n",value);     
+ }
         else if(pid>0){
             wait(NULL);
             printf("PARENT: value = %d\n",value);
