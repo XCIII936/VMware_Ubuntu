@@ -1,7 +1,7 @@
 #include "vmrp.h"
 #include <cstring>  // 确保包含cstring头文件
 
-Replace::Replace() : ReferenceBits(nullptr), ModifiedBits(nullptr) {
+Replace::Replace() : ReferenceBits(nullptr), ModifiedBits(nullptr), Frequency(nullptr) {
     srand(time(nullptr));
     
     int choice=2;
@@ -41,6 +41,7 @@ Replace::~Replace() {
     delete[] PageFrames;
     delete[] ReferenceBits;
     delete[] ModifiedBits;
+    delete[] Frequency;
 }
 
 void Replace::InitSpace(const char *MethodName) {  // 修改为const char*
@@ -70,7 +71,15 @@ void Replace::InitSpace(const char *MethodName) {  // 修改为const char*
             ModifiedBits[i] = 0;
         }
     }
+    
+    if(strstr(MethodName, "LFU") || strstr(MethodName, "MFU")) {
+        delete[] Frequency;
+        Frequency = new int[FrameNumber];
+        for(int i = 0; i < FrameNumber; i++)
+            Frequency[i] = 0;
+    }
 }
+
 void Replace::Report(void) {
     cout << endl << "Eliminate page sequence: ";
     for(int i = 0; i < PageNumber && EliminatePage[i] != -1; i++)
@@ -85,13 +94,16 @@ void Replace::DisplayPages(int replaced) {
     for(int i = 0; i < FrameNumber; i++) {
         if(PageFrames[i] != -1) {
             cout << PageFrames[i];
-            // 显示引用位和修改位(如果适用)
+            // 显示引用位和修改位（如果启用）
             if(ReferenceBits != nullptr) {
                 cout << "(" << ReferenceBits[i];
                 if(ModifiedBits != nullptr)
                     cout << "," << ModifiedBits[i];
                 cout << ")";
             }
+            // 显示频率（如果启用）
+            if(Frequency != nullptr)
+                cout << "[" << Frequency[i] << "]";
             cout << " ";
         }
     }
@@ -100,7 +112,7 @@ void Replace::DisplayPages(int replaced) {
     cout << endl;
 }
 
-// 先进先出置换算法
+// 先进先出页面置换算法
 void Replace::Fifo(void) {
     InitSpace("FIFO");
     int pointer = 0;
@@ -109,7 +121,7 @@ void Replace::Fifo(void) {
         int next = ReferencePage[k];
         bool found = false;
         
-        // 检查页是否已在内存中
+        // 检查页是否在内存中
         for(int i = 0; i < FrameNumber; i++) {
             if(PageFrames[i] == next) {
                 found = true;
@@ -122,7 +134,7 @@ void Replace::Fifo(void) {
             continue;
         }
         
-        // 页错误处理
+        // 发生缺页错误
         FaultNumber++;
         int replaced = -1;
         
@@ -140,7 +152,7 @@ void Replace::Fifo(void) {
     Report();
 }
 
-// 最近最久未使用置换算法
+// 最近最少使用页面置换算法
 void Replace::Lru(void) {
     InitSpace("LRU");
     int *lastUsed = new int[FrameNumber];
@@ -151,7 +163,7 @@ void Replace::Lru(void) {
         bool found = false;
         int foundIndex = -1;
         
-        // 检查页是否已在内存中
+        // 检查页是否在内存中
         for(int i = 0; i < FrameNumber; i++) {
             if(PageFrames[i] == next) {
                 found = true;
@@ -166,11 +178,11 @@ void Replace::Lru(void) {
             continue;
         }
         
-        // 页错误处理
+        // 发生缺页错误
         FaultNumber++;
         int replaceIndex = 0;
         
-        // 查找最近最久未使用的页
+        // 查找最近最少使用的页
         for(int i = 1; i < FrameNumber; i++) {
             if(lastUsed[i] < lastUsed[replaceIndex]) {
                 replaceIndex = i;
@@ -193,7 +205,7 @@ void Replace::Lru(void) {
     Report();
 }
 
-// 二次机会(Clock)置换算法
+// 二次机会(Clock)页面置换算法
 void Replace::Clock(void) {
     InitSpace("Clock");
     int pointer = 0;
@@ -202,7 +214,7 @@ void Replace::Clock(void) {
         int next = ReferencePage[k];
         bool found = false;
         
-        // 检查页是否已在内存中
+        // 检查页是否在内存中
         for(int i = 0; i < FrameNumber; i++) {
             if(PageFrames[i] == next) {
                 found = true;
@@ -216,7 +228,7 @@ void Replace::Clock(void) {
             continue;
         }
         
-        // 页错误处理
+        // 发生缺页错误
         FaultNumber++;
         int replaced = -1;
         bool replacedFlag = false;
@@ -233,7 +245,7 @@ void Replace::Clock(void) {
                 ReferenceBits[pointer] = 1;
                 replacedFlag = true;
             } else {
-                // 给第二次机会
+                // 第二次机会
                 ReferenceBits[pointer] = 0;
             }
             pointer = (pointer + 1) % FrameNumber;
@@ -245,7 +257,7 @@ void Replace::Clock(void) {
     Report();
 }
 
-// 增强型二次机会(Enhanced Clock)置换算法
+// 增强型二次机会(Enhanced Clock)页面置换算法
 void Replace::EnhancedClock(void) {
     InitSpace("Enhanced Clock");
     int pointer = 0;
@@ -254,13 +266,13 @@ void Replace::EnhancedClock(void) {
         int next = ReferencePage[k];
         bool found = false;
         
-        // 检查页是否已在内存中
+        // 检查页是否在内存中
         for(int i = 0; i < FrameNumber; i++) {
             if(PageFrames[i] == next) {
                 found = true;
                 ReferenceBits[i] = 1; // 设置引用位
-                // 有50%概率设置修改位(模拟实际场景)
-                if(rand() % 2 == 0) ModifiedBits[i] = 1;
+                // 以10%概率设置修改位（模拟实际背景）
+                if(rand() % 10 == 0) ModifiedBits[i] = 1;
                 break;
             }
         }
@@ -270,15 +282,15 @@ void Replace::EnhancedClock(void) {
             continue;
         }
         
-        // 页错误处理
+        // 发生缺页错误
         FaultNumber++;
         int replaced = -1;
         bool replacedFlag = false;
         int rounds = 0;
         
-        // 查找替换页(最多扫描两轮)
+        // 查找替换页（最多两轮）
         while(!replacedFlag && rounds < 2) {
-            // 第一类: (0,0)
+            // 第一类 (0,0)
             for(int i = 0; i < FrameNumber && !replacedFlag; i++) {
                 int idx = (pointer + i) % FrameNumber;
                 if(ReferenceBits[idx] == 0 && ModifiedBits[idx] == 0) {
@@ -292,7 +304,7 @@ void Replace::EnhancedClock(void) {
                 }
             }
             
-            // 第二类: (0,1)
+            // 第二类 (0,1)
             if(!replacedFlag) {
                 for(int i = 0; i < FrameNumber && !replacedFlag; i++) {
                     int idx = (pointer + i) % FrameNumber;
@@ -305,7 +317,7 @@ void Replace::EnhancedClock(void) {
                         pointer = (idx + 1) % FrameNumber;
                         replacedFlag = true;
                     } else {
-                        // 给第二次机会
+                        // 第二次机会
                         ReferenceBits[idx] = 0;
                     }
                 }
@@ -320,12 +332,128 @@ void Replace::EnhancedClock(void) {
     Report();
 }
 
+// 最近最不经常使用(LFU)页面置换算法
+void Replace::Lfu(void) {
+    InitSpace("LFU");
+    
+    // 初始化频率数组
+    for(int i = 0; i < FrameNumber; i++) {
+        Frequency[i] = 0;
+    }
+    
+    for(int k = 0; k < PageNumber; k++) {
+        int next = ReferencePage[k];
+        bool found = false;
+        int foundIndex = -1;
+        
+        // 检查页是否在内存中
+        for(int i = 0; i < FrameNumber; i++) {
+            if(PageFrames[i] == next) {
+                found = true;
+                foundIndex = i;
+                break;
+            }
+        }
+        
+        if(found) {
+            Frequency[foundIndex]++;  // 增加频率计数
+            DisplayPages();
+            continue;
+        }
+        
+        // 发生缺页错误
+        FaultNumber++;
+        int replaceIndex = 0;
+        int minFrequency = Frequency[0];
+        
+        // 查找频率最低的页
+        for(int i = 1; i < FrameNumber; i++) {
+            if(Frequency[i] < minFrequency || 
+               (Frequency[i] == minFrequency && PageFrames[i] == -1)) {
+                minFrequency = Frequency[i];
+                replaceIndex = i;
+            }
+        }
+        
+        int replaced = -1;
+        if(PageFrames[replaceIndex] != -1) {
+            replaced = PageFrames[replaceIndex];
+            EliminatePage[k] = replaced;
+        }
+        
+        PageFrames[replaceIndex] = next;
+        Frequency[replaceIndex] = 1;  // 新页面的初始频率为1
+        
+        DisplayPages(replaced);
+    }
+    
+    Report();
+}
+
+// 最近最经常使用(MFU)页面置换算法
+void Replace::Mfu(void) {
+    InitSpace("MFU");
+    
+    // 初始化频率数组
+    for(int i = 0; i < FrameNumber; i++) {
+        Frequency[i] = 0;
+    }
+    
+    for(int k = 0; k < PageNumber; k++) {
+        int next = ReferencePage[k];
+        bool found = false;
+        int foundIndex = -1;
+        
+        // 检查页是否在内存中
+        for(int i = 0; i < FrameNumber; i++) {
+            if(PageFrames[i] == next) {
+                found = true;
+                foundIndex = i;
+                break;
+            }
+        }
+        
+        if(found) {
+            Frequency[foundIndex]++;  // 增加频率计数
+            DisplayPages();
+            continue;
+        }
+        
+        // 发生缺页错误
+        FaultNumber++;
+        int replaceIndex = 0;
+        int maxFrequency = Frequency[0];
+        
+        // 查找频率最高的页
+        for(int i = 1; i < FrameNumber; i++) {
+            if(Frequency[i] > maxFrequency || 
+               (Frequency[i] == maxFrequency && PageFrames[i] == -1)) {
+                maxFrequency = Frequency[i];
+                replaceIndex = i;
+            }
+        }
+        
+        int replaced = -1;
+        if(PageFrames[replaceIndex] != -1) {
+            replaced = PageFrames[replaceIndex];
+            EliminatePage[k] = replaced;
+        }
+        
+        PageFrames[replaceIndex] = next;
+        Frequency[replaceIndex] = 1;  // 新页面的初始频率为1
+        
+        DisplayPages(replaced);
+    }
+    
+    Report();
+}
+
 void Replace::GenerateRandomReference(int length) {
     PageNumber = length;
     ReferencePage = new int[PageNumber];
     EliminatePage = new int[PageNumber];
     
-    // 生成随机引用串(基于局部性原理)
+    // 生成随机引用串，基于局部性原理
     int base = rand() % 5 + 1; // 1-5
     for(int i = 0; i < PageNumber; i++) {
         // 80%概率访问附近页面，20%概率随机访问
@@ -349,11 +477,13 @@ void Replace::RandomTest(int pages, int frames, int length) {
     PageFrames = new int[FrameNumber];
     GenerateRandomReference(length);
     
-    // 运行所有算法
+    // 执行所有算法
     Fifo();
     Lru();
     Clock();
     EnhancedClock();
+    Lfu();
+    Mfu();
 }
 
 int main() {

@@ -19,6 +19,8 @@ public:
     void Lru(void);
     void Clock(void);
     void EnhancedClock(void);
+    void Lfu(void);
+    void Mfu(void);
     void RandomTest(int pages, int frames, int length);
     
 private:
@@ -27,6 +29,7 @@ private:
     int *PageFrames;
     int *ReferenceBits;
     int *ModifiedBits;
+    int *Frequency;  // 新增频率数组
     int PageNumber;
     int FrameNumber;
     int FaultNumber;
